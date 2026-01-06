@@ -80,8 +80,11 @@ export function StepThree({ onNext, onBack, data }: Props) {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h2 className="text-2xl font-semibold text-foreground">補充資訊</h2>
-        <p className="text-muted-foreground">根據您剛才提供的資訊,我們需要了解一些額外細節</p>
+        <h2 className="text-2xl font-semibold text-foreground">補充資料</h2>
+        <p className="text-muted-foreground">根據您剛才提供的資訊，我們需要了解一些額外細節</p>
+        <p className="text-sm text-muted-foreground italic mt-2">
+          💡 之後會放上引導式問答
+        </p>
       </div>
 
       <div className="space-y-6">

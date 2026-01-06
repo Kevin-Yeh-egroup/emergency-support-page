@@ -106,8 +106,8 @@ export function StepSix({ data }: Props) {
       </div>
 
       <div className="text-center text-sm text-muted-foreground pt-4">
-        <p>如有任何問題,請聯繫我們:</p>
-        <p className="font-medium text-foreground mt-1">服務專線 1957 (24小時)</p>
+        <p>如有任何問題，請聯繫我們：</p>
+        <p className="font-medium text-foreground mt-1">聯絡信箱：service@familyfinhealth.com</p>
       </div>
     </div>
   )
