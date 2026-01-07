@@ -2,11 +2,62 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import type { EmergencyData } from "@/app/page"
-import { Upload, FileText, X, TrendingDown, Heart, Home, UserX } from "lucide-react"
+import { Upload, FileText, X, TrendingDown, Heart, Home, UserX, HelpCircle, Mic, MicOff } from "lucide-react"
+
+// 語音識別 API 類型定義
+interface SpeechRecognition extends EventTarget {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  start(): void
+  stop(): void
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null
+  onend: (() => void) | null
+}
+
+interface SpeechRecognitionEvent {
+  resultIndex: number
+  results: SpeechRecognitionResultList
+}
+
+interface SpeechRecognitionErrorEvent {
+  error: string
+  message: string
+}
+
+interface SpeechRecognitionResultList {
+  length: number
+  item(index: number): SpeechRecognitionResult
+  [index: number]: SpeechRecognitionResult
+}
+
+interface SpeechRecognitionResult {
+  length: number
+  item(index: number): SpeechRecognitionAlternative
+  [index: number]: SpeechRecognitionAlternative
+  isFinal: boolean
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string
+  confidence: number
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: {
+      new (): SpeechRecognition
+    }
+    webkitSpeechRecognition: {
+      new (): SpeechRecognition
+    }
+  }
+}
 
 type Props = {
   onNext: (data: Partial<EmergencyData>) => void
@@ -31,50 +82,105 @@ const scenarioMap: Record<string, { title: string; icon: React.ComponentType<{ c
     title: "撐著全家的那個人突然不在了",
     icon: UserX,
   },
+  "other": {
+    title: "其他急難困難",
+    icon: HelpCircle,
+  },
 }
 
 export function StepOne({ onNext, onBack, data }: Props) {
-  const [inputType, setInputType] = useState<"text" | "file">(data.files && data.files.length > 0 ? "file" : "text")
   const [input, setInput] = useState(data.freeInput || "")
   const [files, setFiles] = useState<File[]>(data.files || [])
-  
-  const selectedScenario = data.scenario ? scenarioMap[data.scenario] : null
-  const ScenarioIcon = selectedScenario?.icon || Heart
+  const [isRecording, setIsRecording] = useState(false)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+
+  // 初始化語音識別
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition()
+        recognition.lang = "zh-TW"
+        recognition.continuous = true
+        recognition.interimResults = true
+
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+          let transcript = ""
+
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const result = event.results[i]
+            transcript += result[0].transcript
+            if (result.isFinal) {
+              transcript += " "
+            }
+          }
+
+          setInput((prev) => {
+            // 移除之前的臨時結果標記
+            const baseText = prev.replace(/\s*\[正在錄音...\]\s*$/, "")
+            // 如果是最終結果，追加並加上空格；如果是臨時結果，顯示並加上標記
+            const isFinal = event.results[event.results.length - 1]?.isFinal
+            if (isFinal) {
+              return baseText + transcript
+            } else {
+              return baseText + transcript + " [正在錄音...]"
+            }
+          })
+        }
+
+        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+          console.error("語音識別錯誤:", event.error)
+          setIsRecording(false)
+        }
+
+        recognition.onend = () => {
+          setIsRecording(false)
+          // 清除臨時結果標記
+          setInput((prev) => prev.replace(/\s*\[正在錄音...\]\s*$/, ""))
+        }
+
+        recognitionRef.current = recognition
+      }
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
+    }
+  }, [])
 
   const handleFileUpload = () => {
     // 模擬上傳：創建一個虛擬文件
     const mockFile = new File([], "相關文件.pdf", { type: "application/pdf" })
-    setFiles([mockFile])
-    setInputType("file")
-    setInput("") // 清除文字輸入
+    setFiles([...files, mockFile])
   }
 
   const removeFile = (index: number) => {
     setFiles(files.filter((_, i) => i !== index))
-    if (files.length === 1) {
-      setInputType("text")
-    }
   }
 
-  const handleInputTypeChange = (type: "text" | "file") => {
-    setInputType(type)
-    if (type === "text") {
-      setFiles([])
+  const handleVoiceInput = () => {
+    if (!recognitionRef.current) {
+      alert("您的瀏覽器不支援語音輸入功能")
+      return
+    }
+
+    if (isRecording) {
+      recognitionRef.current.stop()
+      setIsRecording(false)
     } else {
-      setInput("")
-      handleFileUpload()
+      recognitionRef.current.start()
+      setIsRecording(true)
     }
   }
 
   const handleSubmit = () => {
-    if (inputType === "text" && input.trim()) {
-      onNext({ freeInput: input, files: [] })
-    } else if (inputType === "file" && files.length > 0) {
-      onNext({ freeInput: "", files })
-    }
+    onNext({ freeInput: input, files })
   }
 
-  const canSubmit = (inputType === "text" && input.trim()) || (inputType === "file" && files.length > 0)
+  // 至少需要填寫文字或上傳文件其中一項
+  const canSubmit = input.trim().length > 0 || files.length > 0
 
   return (
     <div className="space-y-6">
@@ -86,102 +192,109 @@ export function StepOne({ onNext, onBack, data }: Props) {
       </div>
 
       {/* 顯示選擇的情境 */}
-      {selectedScenario && (
-        <div className="p-4 rounded-lg bg-gradient-to-br from-[#fef2f2] via-[#fff7ed] to-[#fff7ed] border border-[#fecdd3]/40">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#fecdd3] to-[#fed7aa] flex items-center justify-center">
-              <ScenarioIcon className="w-5 h-5 text-[#e11d48]" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">您選擇的情境</p>
-              <p className="text-sm font-medium text-foreground">{selectedScenario.title}</p>
+      {(() => {
+        const scenarioIds = Array.isArray(data.scenario) 
+          ? data.scenario 
+          : data.scenario 
+            ? [data.scenario] 
+            : []
+        
+        if (scenarioIds.length === 0) return null
+
+        return (
+          <div className="p-4 rounded-lg bg-gradient-to-br from-[#fef2f2] via-[#fff7ed] to-[#fff7ed] border border-[#fecdd3]/40">
+            <p className="text-xs text-muted-foreground mb-2">您選擇的情境</p>
+            <div className="flex flex-wrap gap-2">
+              {scenarioIds.map((id) => {
+                const scenario = scenarioMap[id]
+                if (!scenario) return null
+                const Icon = scenario.icon
+                return (
+                  <div key={id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/80 border border-[#fecdd3]/40">
+                    <Icon className="w-4 h-4 text-[#e11d48]" />
+                    <span className="text-sm font-medium text-foreground">{scenario.title}</span>
+                  </div>
+                )
+              })}
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
-      <div className="space-y-4">
-        {/* 選擇輸入方式 */}
-        <div className="space-y-3">
-          <label className="text-sm font-medium text-foreground">請選擇說明方式</label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => handleInputTypeChange("text")}
-              className={`p-4 rounded-lg border-2 transition-all text-left ${
-                inputType === "text"
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-primary/30"
-              }`}
-            >
-              <FileText className="w-6 h-6 text-primary mb-2" />
-              <p className="font-medium text-foreground">文字敘述</p>
-              <p className="text-xs text-muted-foreground mt-1">用文字說明您的狀況</p>
-            </button>
-            <button
-              onClick={() => handleInputTypeChange("file")}
-              className={`p-4 rounded-lg border-2 transition-all text-left ${
-                inputType === "file"
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-primary/30"
-              }`}
-            >
-              <Upload className="w-6 h-6 text-primary mb-2" />
-              <p className="font-medium text-foreground">上傳文件</p>
-              <p className="text-xs text-muted-foreground mt-1">上傳相關文件說明</p>
-            </button>
-          </div>
-        </div>
-
+      <div className="space-y-6">
         {/* 文字輸入 */}
-        {inputType === "text" && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">狀況說明</label>
+        <div className="space-y-3">
+          <label className="text-sm font-medium text-foreground">請告訴我的的困境</label>
+          <div className="relative">
             <Textarea
               placeholder="例如:我昨天突然被公司解雇,現在沒有收入,下個月的房租付不出來..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="min-h-[200px] resize-none"
+              className="min-h-[200px] resize-none pr-12"
             />
-            <p className="text-xs text-muted-foreground">字數不限,請盡量詳細說明</p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={handleVoiceInput}
+              className={`absolute top-2 right-2 ${
+                isRecording
+                  ? "text-destructive animate-pulse"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              title={isRecording ? "點擊停止錄音" : "點擊開始語音輸入"}
+            >
+              {isRecording ? (
+                <MicOff className="w-5 h-5" />
+              ) : (
+                <Mic className="w-5 h-5" />
+              )}
+            </Button>
           </div>
-        )}
+          <p className="text-xs text-muted-foreground">字數不限,請盡量詳細說明</p>
+        </div>
 
         {/* 文件上傳 */}
-        {inputType === "file" && (
-          <div className="space-y-3">
-            <label className="text-sm font-medium text-foreground">相關文件</label>
-            {files.length === 0 ? (
+        <div className="space-y-3">
+          <label className="text-sm font-medium text-foreground">上傳參考/佐證文件</label>
+          {files.length === 0 ? (
+            <div
+              onClick={handleFileUpload}
+              className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer bg-muted/30"
+            >
+              <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm text-foreground mb-1">點擊上傳文件</p>
+              <p className="text-xs text-muted-foreground">支援任何類型的文件 (診斷書、通知書等)</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {files.map((file, index) => (
+                <div key={index} className="flex items-center justify-between p-4 rounded-lg bg-muted border border-border">
+                  <div className="flex items-center gap-3">
+                    <FileText className="w-5 h-5 text-primary" />
+                    <div>
+                      <span className="text-sm font-medium text-foreground">{file.name}</span>
+                      <p className="text-xs text-muted-foreground">已上傳</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeFile(index)}
+                    className="text-muted-foreground hover:text-destructive transition-colors p-1"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              ))}
               <div
                 onClick={handleFileUpload}
-                className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer bg-muted/30"
+                className="border-2 border-dashed border-border rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer bg-muted/30"
               >
-                <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-foreground mb-1">點擊上傳文件</p>
-                <p className="text-xs text-muted-foreground">支援任何類型的文件 (診斷書、通知書等)</p>
+                <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-1" />
+                <p className="text-xs text-muted-foreground">點擊繼續上傳更多文件</p>
               </div>
-            ) : (
-              <div className="space-y-2">
-                {files.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 rounded-lg bg-muted border border-border">
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-primary" />
-                      <div>
-                        <span className="text-sm font-medium text-foreground">{file.name}</span>
-                        <p className="text-xs text-muted-foreground">已上傳</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => removeFile(index)}
-                      className="text-muted-foreground hover:text-destructive transition-colors p-1"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-3 pt-4">

@@ -6,14 +6,10 @@ import { Progress } from "@/components/ui/progress"
 import { LandingPage } from "@/components/landing-page"
 import { StepZero } from "@/components/steps/step-zero"
 import { StepOne } from "@/components/steps/step-one"
-import { StepTwo } from "@/components/steps/step-two"
-import { StepResults } from "@/components/steps/step-results"
-import { StepThree } from "@/components/steps/step-three"
 import { StepFive } from "@/components/steps/step-five"
-import { StepSix } from "@/components/steps/step-six"
 
 export type EmergencyData = {
-  scenario?: string
+  scenario?: string | string[]
   freeInput?: string
   files?: File[]
   screeningAnswers?: Record<string, any>
@@ -29,7 +25,7 @@ export default function EmergencyAssistancePage() {
   const [currentStep, setCurrentStep] = useState(0)
   const [data, setData] = useState<EmergencyData>({})
 
-  const steps = ["情境選擇", "狀況說明", "快速快篩", "快篩結果", "補充資料", "建議行動", "後續支持"]
+  const steps = ["情境選擇", "狀況說明", "建議行動"]
 
   const totalSteps = steps.length
   const progress = ((currentStep + 1) / totalSteps) * 100
@@ -42,15 +38,7 @@ export default function EmergencyAssistancePage() {
       case 1:
         return "狀況說明"
       case 2:
-        return "快速快篩"
-      case 3:
-        return "快篩結果"
-      case 4:
-        return "補充資料"
-      case 5:
         return "建議行動"
-      case 6:
-        return "後續支持"
       default:
         return "急難救助申請"
     }
@@ -63,15 +51,7 @@ export default function EmergencyAssistancePage() {
       case 1:
         return "請詳細說明您的狀況，幫助我們更了解您的需求"
       case 2:
-        return "透過快速問答，協助我們評估您的急迫程度"
-      case 3:
-        return "根據您的快速快篩回答，我們已為您完成財務韌性評估"
-      case 4:
-        return "AI 會根據您的回答，提出一些補充問題"
-      case 5:
         return "以下是我們為您建議的具體行動方案"
-      case 6:
-        return "這些資源可以持續為您提供協助"
       default:
         return "我們會一步一步協助您完成申請流程"
     }
@@ -100,15 +80,7 @@ export default function EmergencyAssistancePage() {
       case 1:
         return <StepOne onNext={handleNext} onBack={handleBack} data={data} />
       case 2:
-        return <StepTwo onNext={handleNext} onBack={handleBack} data={data} />
-      case 3:
-        return <StepResults onNext={handleNext} onBack={handleBack} data={data} />
-      case 4:
-        return <StepThree onNext={handleNext} onBack={handleBack} data={data} />
-      case 5:
         return <StepFive onNext={handleNext} onBack={handleBack} data={data} />
-      case 6:
-        return <StepSix data={data} />
       default:
         return null
     }

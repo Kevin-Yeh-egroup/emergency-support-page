@@ -29,7 +29,14 @@ export function StepThree({ onNext, onBack, data }: Props) {
       const generatedQuestions: AIQuestion[] = []
 
       // Generate contextual questions based on scenario
-      if (data.scenario === "financial") {
+      // 處理複選情境：檢查是否包含相關情境
+      const scenarioIds = Array.isArray(data.scenario) 
+        ? data.scenario 
+        : data.scenario 
+          ? [data.scenario] 
+          : []
+      
+      if (scenarioIds.includes("income-loss") || scenarioIds.includes("financial")) {
         generatedQuestions.push({
           id: "income",
           question: "您目前每月的收入大約是多少?(可以是 0)",
@@ -42,7 +49,7 @@ export function StepThree({ onNext, onBack, data }: Props) {
         })
       }
 
-      if (data.scenario === "housing") {
+      if (scenarioIds.includes("disaster-accident") || scenarioIds.includes("housing")) {
         generatedQuestions.push({
           id: "current_housing",
           question: "您目前的居住狀況是?",

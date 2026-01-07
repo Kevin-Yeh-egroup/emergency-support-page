@@ -20,8 +20,8 @@ const services = [
   },
   {
     icon: Heart,
-    title: "急難救助單位介紹",
-    description: "評估後協助連結相關救助資源，為您找到最適合的協助",
+    title: "轉介急難救助單位",
+    description: "協助連結相關救助資源",
   },
 ]
 

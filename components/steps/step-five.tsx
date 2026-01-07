@@ -48,9 +48,6 @@ export function StepFive({ onNext, onBack, data }: Props) {
         <Button variant="outline" onClick={onBack} className="flex-1 bg-transparent">
           上一步
         </Button>
-        <Button onClick={() => onNext({})} className="flex-1">
-          查看更多支持資源
-        </Button>
       </div>
     </div>
   )
